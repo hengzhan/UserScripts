@@ -10,13 +10,22 @@
 // @require      http://code.jquery.com/jquery-3.4.1.min.js
 // ==/UserScript==
 
-function getUrls() {
-    var r = []
+function getM() {
+    var u = []
+    var d = []
     var a = $('#meeting_list > tbody > tr > .col6 > a')
     a.each(function () {
-        var url = 'https://' + window.location.hostname + '/account/my/report/participants/export?id=' + encodeURIComponent($(this).attr('data-id')) + '&isUnique=true'
-        r.push(url);
+        var url = `https://${window.location.hostname}/account/my/report/participants/export?id=${encodeURIComponent($(this).attr('data-id'))}&isUnique=true`
+        u.push(url);
     })
+    var b = $('#meeting_list > tbody > tr > .col3[data-column="table.st"]')
+    b.each(function () {
+        var date = $(this).text().replaceAll('/','_').substring(0,10);
+        d.push(date);
+    })
+    var r = u.map(function(e, i) {
+        return [e, d[i]];
+    });
     return r;
 }
 
@@ -27,14 +36,16 @@ function loadFile(filePath) {
     return xmlhttp;
 }
 
-function saveToZip(filename, urls) {
+function saveToZip(filename, data) {
     const zip = new JSZip()
     var counts = {}
-    urls.map(loadFile).forEach(r => {
-        var fn = r.getResponseHeader('Content-Disposition').split('filename=')[1]
+    data.forEach(a => {
+        var r = loadFile(a[0])
+        var date = a[1]
+        var fn = `${r.getResponseHeader('Content-Disposition').split('filename=')[1].split('.')[0].substring(13)}_${date}`
         counts[fn] = (counts[fn] || 0) + 1
-        fn = ((counts[fn] > 1) ? fn.split('.')[0] + '_' + counts[fn] + '.csv' : fn)
-        zip.file(fn, r.responseText);
+        fn = ((counts[fn] > 1) ? `${fn}_${counts[fn]}` : fn)
+        zip.file(fn + '.csv', r.responseText);
     })
     zip.generateAsync({ type: 'blob' }).then((bytes) => {
         let elm = document.createElement('a')
@@ -45,4 +56,4 @@ function saveToZip(filename, urls) {
 }
 
 $('#searchMeetingListForm').append('<button id="batch-down" class="bold" style="margin-left: 20px; width: 140px; height: 20px; border: 1px solid gray; font-family: Verdana,sans-serif; font-size: 11px;">Download all</button>');
-$('#batch-down').click(function (e) { event.preventDefault(); saveToZip('zoomReports_' + new Date().toLocaleDateString() + '.zip', getUrls()) });
+$('#batch-down').click(function (e) { event.preventDefault(); saveToZip(`zoomReports_${new Date().toLocaleDateString()}.zip`, getM()) });
